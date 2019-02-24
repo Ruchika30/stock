@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+  <title>Stock</title>
+</head>
+<body>
+    <div class="container">
+      <div class="mt-3" id="output">
+        <p>
+            WebSocket Status: <span id="websocket-status" ><span class="badge badge-info">Connecting...</span></span>  
+            <span id="action-btn" class="float-right"> </span>     
+        </p>
+      </div>
+      <h2>Stock Prices</h2>
+        <table class="table table-sm table-striped">
+            <thead class="thead-dark">
+              <tr class="">
+                <th scope="col">Name</th>
+                <th scope="col">Value</th>
+                <th scope="col">Trend</th>
+              </tr>
+            </thead>
+            <tbody id='tbody'>
+            </tbody>
+          </table>
+          
+    </div>
+        <script language="javascript" type="text/javascript">
+    
+    function elt(name, attrs, ...children) {
+      let dom = document.createElement(name);
+      for (let attr of Object.keys(attrs)) {
+        dom.setAttribute(attr, attrs[attr]);
+      }
+      for (let child of children) {
+        if (typeof child !== "string") dom.appendChild(child);
+        else dom.appendChild(document.createTextNode(child));
+      }
+      return dom;
+    }
+
+
+    class Stock {
+      constructor( name, value) {
+        this.name = name; 
+        this.oldValue = null;
+        this.newValue = value;
+      }
+  
+      setNewValue(value) {
+        this.oldValue = this.newValue;
+        this.newValue = value;
+        this.render();
+      }
+
+      render(){
+        let stockRow = document.getElementById(this.name);
+        if(stockRow){
+          stockRow.getElementsByTagName('td')[1].innerHTML=this.newValue;
+          let trend = stockRow.getElementsByTagName('td')[2]
+          trend.innerHTML=this.getDifference();
+          trend.style.color=this.getColor();
+        } else {
+          document.getElementById('tbody').appendChild(
+            elt('tr',{id:this.name},
+              elt('td',{},this.name),
+              elt('td',{},String(this.newValue)),
+              elt('td',{},'-'),
+            )
+          );
+        }
+
+      }
+      
+      getDifference(){
+        return this.newValue - this.oldValue;
+      }
+      getColor() {
+        return this.oldValue > this.newValue ? 'red' : 'green';
+      }
+  
+    }
+  
+  
+    class StockTrends {
+      constructor() {
+        this.stocks = {};  
+      }
+      
+      getTrends() {
+        return this.stocks;
+      }
+
+      setTrends(newStocks) {
+        newStocks.forEach((stock) => {
+          if (this.stocks[stock[0]]) {
+            this.stocks[stock[0]].setNewValue(stock[1]);
+          } else {
+            this.stocks[stock[0]] = new Stock(stock[0],stock[1]);
+          }
+        }, this);
+      }
+  
+    }
+  
+    //var wsUri = "wss://echo.websocket.org/";
+    let wsUri = "ws://stocks.mnet.website";
+    let output;
+    let status = document.getElementById('websocket-status');
+    let actionBtn = document.getElementById('action-btn');
+    
+    
+    let stockTrends;
+    function init()
+    {
+      stockTrends = new StockTrends();
+      output = document.getElementById('output');
+      startWebSocket();
+    }
+
+    function changeStatus(message){
+      status.innerHTML= message;
+    }
+  
+    function startWebSocket()
+    {
+      websocket = new WebSocket(wsUri);
+      websocket.onopen = function(evt) { onOpen(evt) };
+      websocket.onclose = function(evt) { onClose(evt) };
+      websocket.onmessage = function(evt) { onMessage(evt) };
+      websocket.onerror = function(evt) { onError(evt) };
+    }
+  
+    function onOpen(evt)
+    {
+      status.innerHTML='<span class="badge badge-success">Connected</span>'
+      actionBtn.innerHTML ='<button type="button" onclick="websocket.close()" class="btn btn-outline-danger">Disconnect</button> '
+    }
+  
+    function onClose(evt)
+    {
+      status.innerHTML='<span class="badge badge-danger">Disconnected</span>'
+      actionBtn.innerHTML ='<button type="button" onclick="startWebSocket()" class="btn btn-outline-success">Connect</button> '
+    }
+  
+    function onMessage(evt)
+    {
+      json_data = typeof(evt);
+
+      // set Stock and Render
+      stockTrends.setTrends(JSON.parse(evt.data));
+
+      // print in console for debuging in table format
+      console.table(stockTrends.getTrends());
+     // websocket.close();
+    }
+  
+    function handleUpdateMessage(value) {
+      value.forEach(([name, price]) => console.log(`${name}: ${price}`));
+      websocket.close();
+  }
+  
+    function onError(evt)
+    {
+      status.innerHTML='<span class="badge badge-danger">ERROR:</span>'
+      writeToScreen(evt.data);
+    }
+  
+    function doSend(message)
+    {
+      writeToScreen("SENT: " + message);
+      websocket.send(message);
+    }
+  
+    function writeToScreen(message)
+    {
+      var pre = document.createElement("p");
+      pre.style.wordWrap = "break-word";
+      pre.innerHTML = message;
+      output.appendChild(pre);
+    }
+  
+    window.addEventListener("load", init, false);
+  
+    </script>
+</body>
+</html>
